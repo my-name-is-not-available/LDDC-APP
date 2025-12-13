@@ -13,15 +13,37 @@ on:
         required: true
         default: "LDDC Release"
 
+# 设置工作流程权限
+permissions:
+  contents: write  # 允许创建release和上传文件
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码
-      - name: Checkout code
+      # 1. 检出代码（需要获取完整的历史记录用于标签）
+      - name: Checkout code with full history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整git历史记录
       
-      # 2. 设置缓存以加速构建
+      # 2. 创建并推送标签（先创建标签再创建release）
+      - name: Create and push tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # 检查标签是否已存在
+          if git rev-parse "${{ github.event.inputs.version_tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ github.event.inputs.version_tag }} already exists"
+          else
+            # 创建新标签
+            git tag "${{ github.event.inputs.version_tag }}"
+            # 推送标签到远程
+            git push origin "${{ github.event.inputs.version_tag }}"
+          fi
+      
+      # 3. 设置缓存以加速构建
       - name: Cache Gradle dependencies
         uses: actions/cache@v3
         with:
@@ -32,66 +54,58 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
       
-      # 3. 设置JDK环境（Android SDK默认需要JDK 17）
+      # 4. 设置JDK环境
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
       
-      # 4. 设置Android SDK
+      # 5. 设置Android SDK
       # - name: Setup Android SDK
-      #   uses: android-actions/setup-android@v3
+      #  uses: android-actions/setup-android@v3
       
-      # 5. 授予gradlew执行权限
+      # 6. 授予gradlew执行权限
       - name: Make gradlew executable
         run: chmod +x ./gradlew
       
-      # 6. 构建Debug版本（无需签名）
+      # 7. 构建Debug版本
       - name: Build Debug APK
         run: ./gradlew assembleDebug
       
-      # 7. 构建Release版本（无签名）
+      # 8. 构建Release版本（无签名）
       - name: Build Release APK (unsigned)
         run: ./gradlew assembleRelease
       
-      # 8. 创建Release
+      # 9. 创建Release（使用较新的版本）
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.version_tag }}
-          release_name: LDDC ${{ github.event.inputs.release_title }}
+          name: LDDC ${{ github.event.inputs.release_title }}
           draft: false
           prerelease: false
+          generate_release_notes: true
       
-      # 9. 上传APK文件到Release
-      - name: Upload APK to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 10. 上传APK文件到Release
+      - name: Upload Debug APK
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./app/build/outputs/apk/debug/app-debug.apk
-          asset_name: LDDC-debug-${{ github.event.inputs.version_tag }}.apk
-          asset_content_type: application/vnd.android.package-archive
+          tag_name: ${{ github.event.inputs.version_tag }}
+          files: |
+            ./app/build/outputs/apk/debug/app-debug.apk
+            ./app/build/outputs/apk/release/app-release.apk
       
-      - name: Upload Release APK
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./app/build/outputs/apk/release/app-release.apk
-          asset_name: LDDC-release-${{ github.event.inputs.version_tag }}.apk
-          asset_content_type: application/vnd.android.package-archive
-      
-      # 10. 输出构建信息
+      # 11. 输出构建信息
       - name: Display build info
         run: |
-          echo "构建完成!"
-          echo "Debug APK: ./app/build/outputs/apk/debug/app-debug.apk"
-          echo "Release APK: ./app/build/outputs/apk/release/app-release.apk"
+          echo "=== 构建完成 ==="
           echo "版本标签: ${{ github.event.inputs.version_tag }}"
+          echo "Release标题: LDDC ${{ github.event.inputs.release_title }}"
+          echo ""
+          echo "生成的文件:"
+          ls -la ./app/build/outputs/apk/debug/
+          ls -la ./app/build/outputs/apk/release/
+          echo ""
+          echo "如果需要签名，请在gradle.properties中配置签名信息"
