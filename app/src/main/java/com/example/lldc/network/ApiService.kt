@@ -15,18 +15,24 @@ interface ApiService {
     ): Response<List<Song>>
 
     @GET("api/get_lyrics_by_id")
-    suspend fun getLyrics(@Query("song_info_json") songInfoJson: String): Response<ResponseBody>
+    suspend fun getLyrics(
+        @Query("song_info_json") songInfoJson: String,
+        @Query("include_romaji") includeRomaji: Boolean = true
+    ): Response<ResponseBody>
 
     @GET("api/match_lyrics")
     suspend fun matchLyrics(
         @Query("title") title: String,
         @Query("artist") artist: String,
-        @Query("duration") duration: Long?
+        @Query("duration") duration: Long?,
+        @Query("include_romaji") includeRomaji: Boolean = true
     ): ResponseBody
 
     @GET("api/match_lyrics")
     suspend fun matchLyricsByKeyword(
         @Query("keyword") keyword: String,
-        @Query("duration") duration: Long?
+        @Query("duration") duration: Long?,
+        @Query("include_romaji") includeRomaji: Boolean = true
     ): ResponseBody
+
 } 
