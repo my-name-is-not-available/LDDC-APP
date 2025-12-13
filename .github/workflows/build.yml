@@ -89,14 +89,23 @@ jobs:
           generate_release_notes: true
       
       # 10. 上传APK文件到Release
-      - name: Upload Debug APK
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.event.inputs.version_tag }}
-          files: |
-            ./app/build/outputs/apk/debug/app-debug.apk
-            ./app/build/outputs/apk/release/app-release.apk
+      #- name: Upload Debug APK
+      #  uses: softprops/action-gh-release@v1
+      #  with:
+      #    tag_name: ${{ github.event.inputs.version_tag }}
+      #    files: |
+      #      ./app/build/outputs/apk/debug/app-debug.apk
+      #      ./app/build/outputs/apk/release/app-release.apk
       
+      # 新上传
+      - name: Upload APK files
+        uses: actions/upload-artifact@v3
+        with:
+          name: LDDC-APKs-${{ github.event.inputs.version_tag }}
+          path: |
+            **/build/outputs/apk/**/*.apk
+            **/build/**/*.apk
+          retention-days: 7
       # 11. 输出构建信息
       - name: Display build info
         run: |
